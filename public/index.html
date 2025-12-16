@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>실시간 채팅</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+    <div id="nickname-container">
+        <h1>채팅방</h1>
+        <p>사용할 닉네임을 입력하세요.</p>
+        <input id="nickname-input" autocomplete="off" />
+        <button id="set-nickname-button">닉네임 정하기</button>
+        <p id="nickname-error" class="error"></p>
+    </div>
+
+    <div id="chat-container" style="display: none;">
+        <ul id="messages"></ul>
+        <form id="form" action="">
+            <input id="input" autocomplete="off" /><button>보내기</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>
