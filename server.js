@@ -142,13 +142,14 @@ io.on('connection', (socket) => {
             // 멘션 파싱
             const mentionedNicknames = message.match(/@([^\s]+)/g);
             if (mentionedNicknames) {
-                const usersInRoom = getUsersInRoom(roomId);
+                // 현재 방에 있는 모든 유저 목록 (닉네임으로 userId 찾기 위함)
+                const usersInRoom = Array.from(openChatActiveUsers.values()).filter(u => u.currentRoom === roomId);
                 mentionedNicknames.forEach(mention => {
                     const mentionedNickname = mention.substring(1); // @ 제거
                     const mentionedUser = usersInRoom.find(u => u.nickname === mentionedNickname);
                     if (mentionedUser) {
                         chatMessage.mentions.push(mentionedUser.id);
-                        // 언급된 사용자에게만 특별 이벤트 발송
+                        // 언급된 사용자에게만 특별 이벤트 발송 (접속해 있는 경우)
                         for (const [sId, activeUser] of openChatActiveUsers.entries()) {
                             if (activeUser.id === mentionedUser.id && activeUser.currentRoom === roomId) {
                                 io.to(sId).emit('mentioned', { 
@@ -156,6 +157,7 @@ io.on('connection', (socket) => {
                                     roomId: room.id, 
                                     roomName: room.name 
                                 });
+                                break; 
                             }
                         }
                     }

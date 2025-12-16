@@ -23,6 +23,8 @@ const userList = document.getElementById('user-list');
 const deleteRoomButton = document.getElementById('delete-room-button');
 const deletedRoomsContainer = document.getElementById('deleted-rooms-container');
 const deletedRoomList = document.getElementById('deleted-room-list');
+const emojiButton = document.getElementById('emoji-button');
+const emojiPicker = document.getElementById('emoji-picker');
 
 // --- State ---
 const state = {
@@ -32,6 +34,13 @@ const state = {
     currentRoom: null,
     isOwner: false,
 };
+
+// --- Emojis ---
+const commonEmojis = [
+    '😀', '😂', '👍', '🙏', '❤️', '🤩', '🤔', '🥳', '😎', '😭',
+    '😍', '😜', '😇', '🤫', '💯', '🔥', '✨', '🎉', '🎁', '👋',
+    '🚀', '💻', '💡', '⏰', '💬', '🐶', '🐱', '👍🏻', '👎🏻', '👌🏻'
+];
 
 // --- Functions ---
 function getOrSetUserId() {
@@ -60,10 +69,10 @@ function addMessage(data) {
     if (data.mentions && data.mentions.includes(state.userId)) {
         item.classList.add('mentioned-message');
     }
-
-    // 메시지 내 멘션된 닉네임을 찾아서 하이라이트 (선택 사항)
-    // 현재는 전체 메시지를 하이라이트하는 것으로 충분
     
+    // 메시지 내 이모지 텍스트를 실제 이모지로 변환 (선택 사항, 브라우저가 직접 렌더링하므로 필요 없을 수 있음)
+    // messageText = messageText.replace(/:\)/g, '😀').replace(/:D/g, '😂'); 
+
     if (data.type === 'system') {
         item.textContent = messageText;
         item.classList.add('system-message');
@@ -85,8 +94,7 @@ function renderRoomList(rooms) {
         li.dataset.roomId = room.id;
 
         if (room.deletedAt) {
-            // 삭제된 방 처리 (방장에게만 표시 및 복구 버튼)
-            if (room.isOwner) {
+            if (room.isOwner) { // 방장에게만 자신의 삭제된 방 표시 및 복구 버튼
                 hasDeletedRooms = true;
                 li.innerHTML = `<span>${room.name} (삭제됨)</span>`;
                 const restoreButton = document.createElement('button');
@@ -96,7 +104,6 @@ function renderRoomList(rooms) {
                 deletedRoomList.appendChild(li);
             }
         } else {
-            // 활성 방 처리
             li.textContent = room.name;
             roomList.appendChild(li);
         }
@@ -166,6 +173,13 @@ function selectMode(mode) {
 window.addEventListener('load', () => {
     getOrSetUserId();
     showScreen('modeSelection');
+
+    // 이모지 패널 채우기
+    commonEmojis.forEach(emoji => {
+        const button = document.createElement('button');
+        button.textContent = emoji;
+        emojiPicker.appendChild(button);
+    });
 });
 
 localChatButton.addEventListener('click', () => selectMode('local'));
@@ -229,6 +243,17 @@ deleteRoomButton.addEventListener('click', () => {
     }
 });
 
+emojiButton.addEventListener('click', () => {
+    emojiPicker.style.display = emojiPicker.style.display === 'grid' ? 'none' : 'grid';
+});
+
+emojiPicker.addEventListener('click', (e) => {
+    if (e.target && e.target.tagName === 'BUTTON') {
+        chatInput.value += e.target.textContent;
+        chatInput.focus();
+        emojiPicker.style.display = 'none';
+    }
+});
 
 // --- Socket Event Handlers ---
 socket.on('rooms list', (rooms) => renderRoomList(rooms));
@@ -237,7 +262,6 @@ socket.on('join room success', ({ room, history, isOwner }) => {
     state.currentRoom = room.id;
     state.isOwner = isOwner;
     chatRoomName.textContent = room.name;
-    // 방장에게만 삭제 버튼 보이기
     if (state.isOwner) {
         deleteRoomButton.style.display = 'inline-block';
     } else {
