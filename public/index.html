@@ -6,19 +6,53 @@
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-    <div id="nickname-container">
-        <h1>채팅방</h1>
+    <div id="mode-selection-container">
+        <h1>채팅 모드 선택</h1>
+        <button id="local-chat-button">로컬 채팅 (같은 IP끼리)</button>
+        <button id="open-chat-button">오픈 채팅</button>
+    </div>
+
+    <div id="nickname-container" style="display: none;">
+        <h1>닉네임 설정</h1>
         <p>사용할 닉네임을 입력하세요.</p>
         <input id="nickname-input" autocomplete="off" />
-        <button id="set-nickname-button">닉네임 정하기</button>
+        <button id="set-nickname-button">채팅 참여</button>
         <p id="nickname-error" class="error"></p>
     </div>
 
-    <div id="chat-container" style="display: none;">
-        <ul id="messages"></ul>
-        <form id="form" action="">
-            <input id="input" autocomplete="off" /><button>보내기</button>
+    <div id="lobby-container" style="display: none;">
+        <h2>오픈 채팅방 목록</h2>
+        <ul id="room-list"></ul>
+        <form id="create-room-form">
+            <input id="room-name-input" placeholder="새 채팅방 이름" autocomplete="off" />
+            <button>방 만들기</button>
         </form>
+
+        <div id="deleted-rooms-container" style="display: none;">
+            <h2>내가 삭제한 방 (72시간 이내 복구 가능)</h2>
+            <ul id="deleted-room-list"></ul>
+        </div>
+    </div>
+
+    <div id="chat-container" style="display: none;">
+        <div id="room-name-wrapper">
+            <h2 id="chat-room-name"></h2>
+            <button id="delete-room-button" style="display: none;">방 삭제</button>
+        </div>
+        <div id="chat-content-wrapper">
+            <div id="chat-main">
+                <ul id="messages"></ul>
+                <div id="emoji-picker" style="display: none;"></div>
+                <form id="form" action="">
+                    <button type="button" id="emoji-button">😀</button>
+                    <input id="input" autocomplete="off" /><button>보내기</button>
+                </form>
+            </div>
+            <div id="user-list-container">
+                <h3>참가자</h3>
+                <ul id="user-list"></ul>
+            </div>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

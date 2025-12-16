@@ -1,10 +1,12 @@
-body { 
-    margin: 0; 
-    padding-bottom: 3rem; 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
 }
 
-#nickname-container {
+#nickname-container, #mode-selection-container, #lobby-container {
     max-width: 600px;
     margin: 2rem auto;
     padding: 2rem;
@@ -13,53 +15,216 @@ body {
     text-align: center;
 }
 
-#form { 
-    background: rgba(0, 0, 0, 0.15); 
-    padding: 0.25rem; 
-    position: fixed; 
-    bottom: 0; 
-    left: 0; 
-    right: 0; 
-    display: flex; 
-    height: 3rem; 
-    box-sizing: border-box; 
-    backdrop-filter: blur(10px); 
+#lobby-container {
+    text-align: left;
 }
 
-#input { 
-    border: none; 
-    padding: 0 1rem; 
-    flex-grow: 1; 
-    border-radius: 2rem; 
-    margin: 0.25rem; 
+#deleted-rooms-container {
+    margin-top: 2rem;
+    border-top: 1px solid #eee;
+    padding-top: 1rem;
 }
 
-#input:focus { 
-    outline: none; 
+#deleted-room-list {
+    list-style-type: none;
+    padding: 0;
+    margin-bottom: 1rem;
 }
 
-#form > button { 
-    background: #333; 
-    border: none; 
-    padding: 0 1rem; 
-    margin: 0.25rem; 
-    border-radius: 3px; 
-    outline: none; 
-    color: #fff; 
+#deleted-room-list li {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #ffe0e0; /* Reddish background for deleted rooms */
+    color: #a00;
 }
 
-#messages { 
-    list-style-type: none; 
-    margin: 0; 
-    padding: 0; 
+#deleted-room-list li:hover {
+    background-color: #ffcccc;
 }
 
-#messages > li { 
-    padding: 0.5rem 1rem; 
+#deleted-room-list li button {
+    background-color: #28a745; /* Green for restore */
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
 }
 
-#messages > li:nth-child(odd) { 
-    background: #efefef; 
+#deleted-room-list li button:hover {
+    background-color: #218838;
+}
+
+#room-list {
+    list-style-type: none;
+    padding: 0;
+    margin-bottom: 1rem;
+}
+
+/* ... (Lobby and Mode selection styles remain the same) ... */
+
+#chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#chat-room-name {
+    padding: 0 1rem;
+}
+
+#room-name-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem 0 1rem;
+    border-bottom: 1px solid #ddd;
+    height: 3rem;
+    background-color: #f8f9fa;
+}
+
+#delete-room-button {
+    background-color: #dc3545; /* Red color for delete */
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+#delete-room-button:hover {
+    background-color: #c82333;
+}
+
+#chat-content-wrapper {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+#chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#messages {
+    list-style-type: none;
+    margin: 0;
+    padding: 1rem;
+    flex: 1;
+    overflow-y: auto;
+}
+
+#form {
+    display: flex;
+    padding: 0.5rem;
+    border-top: 1px solid #ddd;
+    background-color: #f8f9fa;
+    position: relative; /* 이모티콘 패널을 위한 상대 위치 */
+}
+
+#emoji-button {
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    padding: 0.5rem 0.8rem;
+    border-radius: 2rem;
+    margin-right: 0.5rem;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+#emoji-button:hover {
+    background-color: #e0e0e0;
+}
+
+#emoji-picker {
+    position: absolute;
+    bottom: 4.5rem; /* 입력 필드 위에 표시 */
+    left: 0.5rem;
+    right: 0.5rem;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(35px, 1fr));
+    gap: 5px;
+    z-index: 1000;
+}
+
+#emoji-picker button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+}
+#emoji-picker button:hover {
+    background-color: #f0f0f0;
+    border-radius: 4px;
+}
+
+#input {
+    border: 1px solid #ccc;
+    padding: 0.5rem 1rem;
+    flex-grow: 1;
+    border-radius: 2rem;
+    margin-right: 0.5rem;
+}
+
+#input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+#form > button {
+    background: #007bff;
+    border: none;
+    padding: 0 1.25rem;
+    border-radius: 2rem;
+    color: #fff;
+    cursor: pointer;
+}
+
+#user-list-container {
+    width: 200px;
+    border-left: 1px solid #ddd;
+    background-color: #f8f9fa;
+    overflow-y: auto;
+    padding-bottom: 1rem;
+}
+
+#user-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#user-list li {
+    padding: 0.5rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.owner-indicator {
+    font-size: 0.8em;
+    color: #6c757d;
+    margin-left: 0.5rem;
 }
 
 .system-message {
