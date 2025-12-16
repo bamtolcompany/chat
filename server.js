@@ -34,10 +34,18 @@ try {
 openChatRooms = db.loadRooms();
 
 function saveLocalNicknames() {
-    fs.writeFileSync(NICKNAMES_FILE, JSON.stringify(usedNicknamesByIp));
+    try {
+        fs.writeFileSync(NICKNAMES_FILE, JSON.stringify(usedNicknamesByIp));
+    } catch (e) {
+        console.error("로컬 닉네임 파일 저장 실패:", e.message, "이 환경에서는 파일 영속성이 작동하지 않을 수 있습니다.");
+    }
 }
 function saveOpenChatRooms() {
-    db.saveRooms(openChatRooms);
+    try {
+        db.saveRooms(openChatRooms);
+    } catch (e) {
+        console.error("오픈 채팅방 데이터 저장 실패:", e.message, "이 환경에서는 파일 영속성이 작동하지 않을 수 있습니다.");
+    }
 }
 
 app.use(express.static('public'));
