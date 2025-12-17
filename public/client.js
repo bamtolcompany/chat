@@ -53,11 +53,86 @@ function getOrSetUserId() {
     return userId;
 }
 
-function showScreen(screenName) {
+function updateUrl(path, replace = false) {
+    if (replace) {
+        history.replaceState(null, '', path);
+    } else {
+        history.pushState(null, '', path);
+    }
+}
+
+function showScreen(screenName, path = '') {
     Object.values(screens).forEach(screen => screen.style.display = 'none');
     screens[screenName].style.display = 'block';
     if (screenName === 'chat') {
         screens.chat.style.display = 'flex';
+    }
+    if (path) {
+        // Replace current state if it's the initial load or a mode change
+        // Push a new state for navigation within a mode (e.g., entering a room)
+        const replaceState = (history.state === null && location.pathname === '/') || (screenName === 'modeSelection' || screenName === 'nickname' || screenName === 'lobby');
+        updateUrl(path, replaceState);
+    }
+}
+
+function router() {
+    const path = location.pathname;
+    // console.log('Routing to:', path); // For debugging
+
+    if (path === '/') {
+        showScreen('modeSelection', '/');
+    } else if (path === '/nickname') {
+        showScreen('nickname', '/nickname');
+    } else if (path === '/lobby') {
+        showScreen('lobby', '/lobby');
+        socket.emit('get rooms');
+    } else if (path.startsWith('/chat/local/')) {
+        state.chatMode = 'local';
+        const nickname = path.split('/')[3]; // /chat/local/NICKNAME
+        if (nickname) {
+            state.nickname = decodeURIComponent(nickname);
+            showScreen('chat', path);
+            socket.emit('set nickname', { 
+                nickname: state.nickname, 
+                mode: state.chatMode,
+                userId: state.userId
+            });
+        } else {
+            // Invalid local chat URL, redirect to nickname selection
+            showScreen('nickname', '/nickname');
+        }
+    } else if (path.startsWith('/chat/open/')) {
+        state.chatMode = 'open';
+        const parts = path.split('/'); // /chat/open/ROOM_ID/NICKNAME
+        const roomId = parts[3];
+        const nickname = parts[4];
+
+        if (roomId && nickname) {
+            state.currentRoom = roomId;
+            state.nickname = decodeURIComponent(nickname);
+            showScreen('chat', path);
+            // Ensure userId is set before emitting
+            if (!state.userId) getOrSetUserId(); // Ensure userId is set before it's used in set nickname
+            socket.emit('set nickname', { 
+                nickname: state.nickname, 
+                mode: state.chatMode,
+                userId: state.userId
+            }, (response) => {
+                if (response.success) {
+                    socket.emit('join room', { roomId });
+                } else {
+                    // Nickname might be taken or other issue, redirect to lobby
+                    alert(response.message);
+                    showScreen('lobby', '/lobby');
+                }
+            });
+        } else {
+            // Invalid open chat URL, redirect to lobby
+            showScreen('lobby', '/lobby');
+        }
+    } else {
+        // Fallback for unknown paths
+        showScreen('modeSelection', '/');
     }
 }
 
@@ -150,10 +225,10 @@ function setNickname() {
             state.nickname = nickname;
             localStorage.setItem('nickname', nickname);
             if (response.action === 'show_lobby') {
-                showScreen('lobby');
+                showScreen('lobby', '/lobby');
                 socket.emit('get rooms');
-            } else {
-                showScreen('chat');
+            } else { // Local chat
+                showScreen('chat', `/chat/local/${encodeURIComponent(nickname)}`);
             }
         } else {
             nicknameError.textContent = response.message;
@@ -163,7 +238,7 @@ function setNickname() {
 
 function selectMode(mode) {
     state.chatMode = mode;
-    showScreen('nickname');
+    showScreen('nickname', '/nickname');
     const savedNickname = localStorage.getItem('nickname');
     if (savedNickname) nicknameInput.value = savedNickname;
     nicknameInput.focus();
@@ -172,7 +247,7 @@ function selectMode(mode) {
 // --- Event Listeners ---
 window.addEventListener('load', () => {
     getOrSetUserId();
-    showScreen('modeSelection');
+    router(); // Call router on initial load
 
     // 이모지 패널 채우기
     commonEmojis.forEach(emoji => {
@@ -181,6 +256,8 @@ window.addEventListener('load', () => {
         emojiPicker.appendChild(button);
     });
 });
+
+window.addEventListener('popstate', router); // Handle back/forward buttons
 
 localChatButton.addEventListener('click', () => selectMode('local'));
 openChatButton.addEventListener('click', () => selectMode('open'));
@@ -267,14 +344,14 @@ socket.on('join room success', ({ room, history, isOwner }) => {
     } else {
         deleteRoomButton.style.display = 'none';
     }
-    showScreen('chat');
+    showScreen('chat', `/chat/open/${room.id}/${encodeURIComponent(state.nickname)}`);
     messages.innerHTML = '';
     history.forEach(addMessage);
 });
 
 socket.on('join room failed', ({ message }) => {
     alert(message);
-    showScreen('lobby');
+    showScreen('lobby', '/lobby');
     socket.emit('get rooms');
 });
 
@@ -299,7 +376,7 @@ socket.on('banned', ({ roomName, message }) => {
     alert(message);
     state.currentRoom = null;
     state.isOwner = false;
-    showScreen('lobby');
+    showScreen('lobby', '/lobby');
     socket.emit('get rooms');
 });
 
@@ -307,7 +384,7 @@ socket.on('delete success', ({ message }) => {
     alert(message);
     state.currentRoom = null;
     state.isOwner = false;
-    showScreen('lobby');
+    showScreen('lobby', '/lobby');
     socket.emit('get rooms');
 });
 
@@ -319,13 +396,13 @@ socket.on('room deleted', ({ roomName, message }) => {
     alert(message);
     state.currentRoom = null;
     state.isOwner = false;
-    showScreen('lobby');
+    showScreen('lobby', '/lobby');
     socket.emit('get rooms');
 });
 
 socket.on('restore success', ({ message }) => {
     alert(message);
-    showScreen('lobby');
+    showScreen('lobby', '/lobby');
     socket.emit('get rooms');
 });
 

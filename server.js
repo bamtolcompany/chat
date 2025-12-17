@@ -1,3 +1,4 @@
+console.log('Server script execution started.');
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -9,6 +10,7 @@ const db = require('./db');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+console.log('Express app and Socket.IO server initialized.');
 
 const PORT = process.env.PORT || 3000;
 
@@ -31,7 +33,9 @@ try {
     if (e.code !== 'ENOENT') console.error("로컬 닉네임 파일을 읽는 데 실패했습니다:", e);
     usedNicknamesByIp = {};
 }
+console.log('Attempting to load open chat rooms...');
 openChatRooms = db.loadRooms();
+console.log('Open chat rooms loaded successfully.');
 
 function saveLocalNicknames() {
     try {
@@ -49,6 +53,12 @@ function saveOpenChatRooms() {
 }
 
 app.use(express.static('public'));
+console.log('Static files middleware setup.');
+
+// Fallback for client-side routing
+app.use((req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Helper function to get users in a specific room
 function getUsersInRoom(roomId) {
@@ -416,6 +426,11 @@ io.on('connection', (socket) => {
         }
         io.emit('rooms list', roomsListForClient);
 
-        socket.emit('restore success', { message: `"${room.name}" 방을 성공적으로 복구했습니다.` });
-    });
-});
+                                    socket.emit('restore success', { message: `"${room.name}" 방을 성공적으로 복구했습니다.` });
+                                });
+                        }); // Correctly close io.on('connection', ...)
+                        
+                        console.log('Calling server.listen()...');
+                        server.listen(PORT, () => {
+                            console.log(`Server is listening on *:${PORT}`);
+                        });
