@@ -56,14 +56,26 @@ function saveOpenChatRooms() {
  * Extracts the network prefix (first three octets) from an IPv4 address.
  * E.g., '192.168.1.100' becomes '192.168.1'.
  * This is used to group clients on the same local subnet for 'local' chat mode.
- * @param {string} ipAddress - The IPv4 address.
+ * Handles IPv6-mapped IPv4 addresses (e.g., ::ffff:192.168.1.100).
+ * @param {string} ipAddress - The IPv4 or IPv6-mapped IPv4 address.
  * @returns {string|null} The network prefix or null if the IP is invalid.
  */
 function getNetworkPrefix(ipAddress) {
     if (!ipAddress || typeof ipAddress !== 'string') {
         return null;
     }
-    const parts = ipAddress.split('.');
+
+    let ipv4 = ipAddress;
+
+    // Check for IPv6-mapped IPv4 addresses (e.g., ::ffff:192.168.1.100)
+    if (ipv4.startsWith('::ffff:')) {
+        ipv4 = ipv4.substring(7); // Extract the IPv4 part
+    } else if (ipv4 === '::1') { // Handle IPv6 localhost
+        ipv4 = '127.0.0.1'; // Map to IPv4 localhost
+    }
+
+
+    const parts = ipv4.split('.');
     if (parts.length === 4 && parts.every(part => !isNaN(parseInt(part)) && parseInt(part) >= 0 && parseInt(part) <= 255)) {
         return parts.slice(0, 3).join('.');
     }
@@ -188,7 +200,7 @@ io.on('connection', (socket) => {
             const chatMessage = { type: 'chat', nickname: socket.nickname, message };
             chatHistoryByIp[roomName].push(chatMessage);
             io.to(roomName).emit('chat message', chatMessage);
-        } else if (mode === 'open') {
+        } else if (socket.chatMode === 'open') {
             const user = openChatActiveUsers.get(socket.id);
             if (!user || !roomId) return;
             const room = openChatRooms[roomId];

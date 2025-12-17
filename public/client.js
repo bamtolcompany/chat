@@ -47,10 +47,17 @@ const commonEmojis = [
 ];
 
 // --- Functions ---
+function generateUUIDv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 function getOrSetUserId() {
     let userId = localStorage.getItem('userId');
     if (!userId) {
-        userId = crypto.randomUUID();
+        userId = generateUUIDv4();
         localStorage.setItem('userId', userId);
     }
     state.userId = userId;
@@ -244,9 +251,7 @@ function selectMode(mode) {
 // --- Event Listeners ---
 window.addEventListener('load', () => {
     getOrSetUserId();
-    // router() is now called by socket.on('connect')
-    // commonEmojis.forEach(emoji => { ... }); moved to separate init function if needed
-    // Or just leave it here as it's UI initialization, not related to socket/routing.
+    router(); // Call router on initial load to ensure UI is displayed promptly
 
     // 이모지 패널 채우기
     commonEmojis.forEach(emoji => {
@@ -368,8 +373,8 @@ function reconnectToChat() {
 socket.on('connect', () => {
     console.log('Socket connected. hasConnectedOnce:', hasConnectedOnce, 'pendingReconnect:', state.pendingReconnect);
     
-    // Always call router to set the state based on current URL
-    router(); 
+    // router() is now called by window.addEventListener('load') and popstate.
+    // So, no need to call router() here. It ensures state is set from URL.
 
     if (state.pendingReconnect || state.pendingAction) {
         // If there's a pending reconnect (real disconnect/reconnect)
@@ -397,7 +402,7 @@ socket.on('disconnect', (reason) => {
     }
 });
 
-socket.on('rooms list', (rooms) => renderRoomList(rooms);;
+socket.on('rooms list', (rooms) => renderRoomList(rooms));
 
 socket.on('join room success', ({ room, history, isOwner }) => {
     state.currentRoom = room.id;
