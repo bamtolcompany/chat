@@ -52,8 +52,18 @@ function saveOpenChatRooms() {
     }
 }
 
+// Health check endpoint for Render.com
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 app.use(express.static('public'));
 console.log('Static files middleware setup.');
+
+// Serve index.html for the root path
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Fallback for client-side routing
 app.use((req, res) => {
