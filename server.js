@@ -52,6 +52,24 @@ function saveOpenChatRooms() {
     }
 }
 
+/**
+ * Extracts the network prefix (first three octets) from an IPv4 address.
+ * E.g., '192.168.1.100' becomes '192.168.1'.
+ * This is used to group clients on the same local subnet for 'local' chat mode.
+ * @param {string} ipAddress - The IPv4 address.
+ * @returns {string|null} The network prefix or null if the IP is invalid.
+ */
+function getNetworkPrefix(ipAddress) {
+    if (!ipAddress || typeof ipAddress !== 'string') {
+        return null;
+    }
+    const parts = ipAddress.split('.');
+    if (parts.length === 4 && parts.every(part => !isNaN(parseInt(part)) && parseInt(part) >= 0 && parseInt(part) <= 255)) {
+        return parts.slice(0, 3).join('.');
+    }
+    return null;
+}
+
 // Health check endpoint for Render.com
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
@@ -82,15 +100,22 @@ function getUsersInRoom(roomId) {
 }
 
 io.on('connection', (socket) => {
-    const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
-    console.log(`a user connected from ${ip}`);
-    socket.ip = ip;
+    const initialIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    const ip = initialIp.split(',')[0].trim(); // Handle multiple IPs from x-forwarded-for
+    
+    // Use the network prefix for local chat grouping
+    const localChatRoomIdentifier = getNetworkPrefix(ip); 
+    
+    console.log(`a user connected from ${ip}, localChatRoomIdentifier: ${localChatRoomIdentifier}`);
+    socket.ip = ip; // Keep original IP for logging/tracking if needed
+    socket.localChatRoom = localChatRoomIdentifier; // Store the room identifier on the socket
     socket.userId = null; // 초기에는 userId가 없음. set nickname에서 설정됨.
 
     // 'local' 모드 데이터 초기화
-    if (!activeNicknamesByIp[ip]) activeNicknamesByIp[ip] = new Set();
-    if (!chatHistoryByIp[ip]) chatHistoryByIp[ip] = [];
-    if (!usedNicknamesByIp[ip]) usedNicknamesByIp[ip] = [];
+    // usedNicknamesByIp, activeNicknamesByIp, chatHistoryByIp는 이제 localChatRoomIdentifier를 키로 사용합니다.
+    if (!activeNicknamesByIp[localChatRoomIdentifier]) activeNicknamesByIp[localChatRoomIdentifier] = new Set();
+    if (!chatHistoryByIp[localChatRoomIdentifier]) chatHistoryByIp[localChatRoomIdentifier] = [];
+    if (!usedNicknamesByIp[localChatRoomIdentifier]) usedNicknamesByIp[localChatRoomIdentifier] = [];
 
     // --- 공통 이벤트 ---
     socket.on('disconnect', () => {
@@ -110,8 +135,8 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('room user list update', usersInRoom);
             }
 
-        } else if (socket.chatMode === 'local' && socket.nickname) {
-            const roomName = socket.ip;
+        } else if (socket.chatMode === 'local' && socket.nickname && socket.localChatRoom) {
+            const roomName = socket.localChatRoom;
             activeNicknamesByIp[roomName].delete(socket.nickname);
             const systemMessage = { type: 'system', message: `"${socket.nickname}"님이 나갔습니다.` };
             chatHistoryByIp[roomName].push(systemMessage);
@@ -128,7 +153,10 @@ io.on('connection', (socket) => {
         socket.userId = userId; // 소켓 객체에 userId 저장
 
         if (mode === 'local') {
-            const roomName = socket.ip;
+            const roomName = socket.localChatRoom; // Use the derived localChatRoom identifier
+            if (!roomName) {
+                return callback({ success: false, message: '로컬 채팅방 식별자를 얻을 수 없습니다.' });
+            }
             if (activeNicknamesByIp[roomName].has(nickname)) {
                 return callback({ success: false, message: '이미 다른 사용자가 접속해 있는 닉네임입니다.' });
             }
@@ -155,11 +183,12 @@ io.on('connection', (socket) => {
     
     socket.on('chat message', ({ message, roomId }) => {
         if (socket.chatMode === 'local') {
-            const roomName = socket.ip;
+            const roomName = socket.localChatRoom; // Use the derived localChatRoom identifier
+            if (!roomName) return; // Should not happen if set nickname was successful
             const chatMessage = { type: 'chat', nickname: socket.nickname, message };
             chatHistoryByIp[roomName].push(chatMessage);
             io.to(roomName).emit('chat message', chatMessage);
-        } else if (socket.chatMode === 'open') {
+        } else if (mode === 'open') {
             const user = openChatActiveUsers.get(socket.id);
             if (!user || !roomId) return;
             const room = openChatRooms[roomId];

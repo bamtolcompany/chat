@@ -33,7 +33,11 @@ const state = {
     userId: null,
     currentRoom: null,
     isOwner: false,
+    pendingReconnect: false, // New state for reconnection management
+    pendingAction: null, // New: To store pending actions for when socket connects
 };
+
+let hasConnectedOnce = false; // New flag to track initial connection
 
 // --- Emojis ---
 const commonEmojis = [
@@ -77,7 +81,9 @@ function showScreen(screenName, path = '') {
 
 function router() {
     const path = location.pathname;
-    // console.log('Routing to:', path); // For debugging
+    console.log('Routing to:', path); // For debugging
+
+    state.pendingAction = null; // Reset pending action on each route
 
     if (path === '/') {
         showScreen('modeSelection', '/');
@@ -85,18 +91,21 @@ function router() {
         showScreen('nickname', '/nickname');
     } else if (path === '/lobby') {
         showScreen('lobby', '/lobby');
-        socket.emit('get rooms');
+        // Only emit 'get rooms' if socket is connected
+        if (socket.connected) {
+            socket.emit('get rooms');
+        } else {
+            // If not connected, it will be handled by socket.on('connect')
+            // when it eventually connects and calls router() again.
+            // Or if pendingReconnect is true, reconnectToChat will handle it.
+        }
     } else if (path.startsWith('/chat/local/')) {
         state.chatMode = 'local';
         const nickname = path.split('/')[3]; // /chat/local/NICKNAME
         if (nickname) {
             state.nickname = decodeURIComponent(nickname);
             showScreen('chat', path);
-            socket.emit('set nickname', { 
-                nickname: state.nickname, 
-                mode: state.chatMode,
-                userId: state.userId
-            });
+            state.pendingAction = 'joinChat'; // Signal pending action
         } else {
             // Invalid local chat URL, redirect to nickname selection
             showScreen('nickname', '/nickname');
@@ -112,20 +121,8 @@ function router() {
             state.nickname = decodeURIComponent(nickname);
             showScreen('chat', path);
             // Ensure userId is set before emitting
-            if (!state.userId) getOrSetUserId(); // Ensure userId is set before it's used in set nickname
-            socket.emit('set nickname', { 
-                nickname: state.nickname, 
-                mode: state.chatMode,
-                userId: state.userId
-            }, (response) => {
-                if (response.success) {
-                    socket.emit('join room', { roomId });
-                } else {
-                    // Nickname might be taken or other issue, redirect to lobby
-                    alert(response.message);
-                    showScreen('lobby', '/lobby');
-                }
-            });
+            if (!state.userId) getOrSetUserId(); // Ensure userId is set before it's used
+            state.pendingAction = 'joinChat'; // Signal pending action
         } else {
             // Invalid open chat URL, redirect to lobby
             showScreen('lobby', '/lobby');
@@ -247,7 +244,9 @@ function selectMode(mode) {
 // --- Event Listeners ---
 window.addEventListener('load', () => {
     getOrSetUserId();
-    router(); // Call router on initial load
+    // router() is now called by socket.on('connect')
+    // commonEmojis.forEach(emoji => { ... }); moved to separate init function if needed
+    // Or just leave it here as it's UI initialization, not related to socket/routing.
 
     // 이모지 패널 채우기
     commonEmojis.forEach(emoji => {
@@ -333,7 +332,83 @@ emojiPicker.addEventListener('click', (e) => {
 });
 
 // --- Socket Event Handlers ---
-socket.on('rooms list', (rooms) => renderRoomList(rooms));
+
+// Placeholder for reconnectToChat function (to be fully implemented later)
+function reconnectToChat() {
+    console.log('Attempting to handle pending chat actions...');
+    if (state.pendingAction === 'joinChat' && state.nickname && state.chatMode) {
+        socket.emit('set nickname', {
+            nickname: state.nickname,
+            mode: state.chatMode,
+            userId: state.userId
+        }, (response) => {
+            if (response.success) {
+                if (state.chatMode === 'open' && state.currentRoom) {
+                    socket.emit('join room', { roomId: state.currentRoom });
+                } else if (state.chatMode === 'local') {
+                    // For local chat, just showing the chat screen is enough after setting nickname
+                    showScreen('chat', `/chat/local/${encodeURIComponent(state.nickname)}`);
+                }
+                // Clear pending action after successful processing
+                state.pendingAction = null;
+            } else {
+                console.error("Pending action failed (set nickname):", response.message);
+                alert(`채팅 재연결 실패: ${response.message}. 로비로 돌아갑니다.`);
+                showScreen('lobby', '/lobby');
+                socket.emit('get rooms');
+                state.pendingAction = null; // Clear pending action on failure
+            }
+        });
+    } else if (location.pathname === '/lobby') { // If path is lobby, just get rooms
+        socket.emit('get rooms');
+    } else {
+        // If no pending action or other path, just route normally.
+        // This might catch cases where router() was called but no specific chat action was needed.
+        // The router will show the correct screen based on the URL.
+        router();
+    }
+    state.pendingReconnect = false; // Always clear pending reconnect after trying
+}
+
+socket.on('connect', () => {
+    console.log('Socket connected. hasConnectedOnce:', hasConnectedOnce, 'pendingReconnect:', state.pendingReconnect);
+    
+    // First, always call router to set the state based on current URL
+    router(); 
+
+    if (!hasConnectedOnce) {
+        hasConnectedOnce = true;
+        // On initial connection, if there's a pending action from router (e.g., direct chat URL), handle it.
+        if (state.pendingAction) {
+            reconnectToChat();
+        }
+    } else if (state.pendingReconnect) {
+        // This means it was a real disconnect and reconnect, so try to rejoin previous chat
+        console.log('Reconnecting to previous chat...');
+        reconnectToChat();
+    } else if (state.pendingAction) {
+        // This case handles popstate events or other router calls that set a pending action
+        // when the socket was already connected but no pendingReconnect flag was set.
+        reconnectToChat();
+    }
+});
+
+socket.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', reason);
+    // If the user was in a chat room, set pendingReconnect to true
+    if ((state.chatMode === 'local' || state.chatMode === 'open') && state.nickname) {
+        state.pendingReconnect = true;
+        console.log('Set pendingReconnect to true for:', state.nickname, 'in', state.chatMode);
+        // Optionally show a "connecting..." message to the user
+        // For now, we'll let the UI remain as is, and reconnect will update it.
+    }
+    // Optionally alert the user about disconnection if they were actively chatting
+    if (state.currentRoom || state.chatMode === 'local') {
+        // alert('서버와의 연결이 끊어졌습니다. 재연결을 시도합니다...');
+    }
+});
+
+socket.on('rooms list', (rooms) => renderRoomList(rooms);;
 
 socket.on('join room success', ({ room, history, isOwner }) => {
     state.currentRoom = room.id;
