@@ -359,13 +359,8 @@ function reconnectToChat() {
                 state.pendingAction = null; // Clear pending action on failure
             }
         });
-    } else if (location.pathname === '/lobby') { // If path is lobby, just get rooms
+    } else if (location.pathname === '/lobby') { // If path is lobby, and no pendingAction, just get rooms
         socket.emit('get rooms');
-    } else {
-        // If no pending action or other path, just route normally.
-        // This might catch cases where router() was called but no specific chat action was needed.
-        // The router will show the correct screen based on the URL.
-        router();
     }
     state.pendingReconnect = false; // Always clear pending reconnect after trying
 }
@@ -373,23 +368,17 @@ function reconnectToChat() {
 socket.on('connect', () => {
     console.log('Socket connected. hasConnectedOnce:', hasConnectedOnce, 'pendingReconnect:', state.pendingReconnect);
     
-    // First, always call router to set the state based on current URL
+    // Always call router to set the state based on current URL
     router(); 
 
-    if (!hasConnectedOnce) {
-        hasConnectedOnce = true;
-        // On initial connection, if there's a pending action from router (e.g., direct chat URL), handle it.
-        if (state.pendingAction) {
-            reconnectToChat();
-        }
-    } else if (state.pendingReconnect) {
-        // This means it was a real disconnect and reconnect, so try to rejoin previous chat
-        console.log('Reconnecting to previous chat...');
+    if (state.pendingReconnect || state.pendingAction) {
+        // If there's a pending reconnect (real disconnect/reconnect)
+        // or a pending action from router (initial load to chat URL, popstate), handle it.
+        console.log('Handling pending reconnect or action...');
         reconnectToChat();
-    } else if (state.pendingAction) {
-        // This case handles popstate events or other router calls that set a pending action
-        // when the socket was already connected but no pendingReconnect flag was set.
-        reconnectToChat();
+    } else if (location.pathname === '/lobby') {
+        // If it's a fresh load to lobby and no pending actions/reconnect, just get rooms
+        socket.emit('get rooms');
     }
 });
 
